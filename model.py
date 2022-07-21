@@ -153,42 +153,7 @@ if __name__ == '__main__':
             optimizer.step()
 
             loss_train += loss.item()
-        
-        # total_corrects = 0
-        # total_loss_val = 0.0
-        # total_corrects2 = 0
-        # acc_val = 0.0
-        # class_correct_counter = torch.zeros(size=(250,), dtype = torch.int32)
-        # class_total_samples = torch.zeros(size=(250,), dtype=torch.int32)
-
-        # for imgs, stats, diagnosis in test_loader:
-        #     model.eval()
-        #     imgs = imgs.to(device)
-        #     stats = stats.to(device)
-        #     diagnosis = diagnosis.to(device)
-
-        #     output = model(imgs, stats)
-        #     loss_val = criterion(output, diagnosis)
-
-        #     values, class_indexes = torch.max(output, dim = 1)
-
-        #     result = (class_indexes == diagnosis)
-
-        #     total_corrects += result.float().sum()
-        #     total_loss_val += loss_val.item()
-        
-        # for i in range(10):
-        #     print(f'class {i} : Total Samples : {class_total_samples[i].item()} / {class_correct_counter[i].item()}'\
-        #         f' acc: {class_correct_counter[i].item()/class_total_samples[i].item()}')
-
     
-        # print(f'test set samples: {len(test_loader)}')
-        # print(f'accuracy_val(total corrects//dataset_size): {total_corrects/len(test_loader.dataset):.4f}'\
-        #     f'\naccuracy_val(topk(k=1)): {total_corrects2/len(test_loader.dataset):.4f}'\
-        #     f'\naccuracy_val(topk(k=1)-per batch acc): {acc_val/len(test_loader):.4f}'\
-        #     f'\nloss_val: {total_loss_val/len(test_loader.dataset):.6f}')
-
-
 
 
     # print('Test loss:', score[0])
