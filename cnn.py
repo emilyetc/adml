@@ -156,7 +156,7 @@ if __name__ == '__main__':
 
             pred = torch.max(output, 1)[1].data.squeeze()
 
-            correct += pred.eq(labels.data.view_as(pred)).cpu().sum()
+            correct += torch.sum(torch.max(output, dim=1).indices == torch.max(labels, dim=1).indices)
 
         loss /= len(train_loader.dataset)
 
@@ -168,60 +168,29 @@ if __name__ == '__main__':
     #accuracy = accuracy * 100 / num_items
     #print("Test Accuracy: {:.3f}%".format(accuracy))
 
+    plt.plot(loss_train)
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy')
+    plt.legend(['Training Loss'], loc = 'upper left')
+    plt.savefig("cnn_loss.png")
+    print("training loss ", min(loss_train))
 
-    plt.figure(figsize=(10,5))
-    plt.title("Training and Validation Loss")
-    plt.plot(val_losses,label="val")
-    plt.plot(loss_train,label="train")
-    plt.xlabel("Iterations")
-    plt.ylabel("Loss")
-    plt.legend()
-    plt.savefig("cnn.png")
+    # Plot training & validation accuracy values
 
-        
-#  plt.figure(figsize=(9, 5))
-#     history = pd.DataFrame({"loss": loss_train})
-#     plt.plot(history.history['loss'])
-#     plt.plot(history.history['val_loss'])
-#     plt.title('Model loss')
-#     plt.ylabel('Loss')
-#     plt.xlabel('Epoch')
-#     plt.legend(['Train', 'Test'], loc='upper left')
-#     plt.savefig("cnn_loss.png")
-
-        
-        # if torch.eq(output, labels):
-        #     num_correct += 1
-        # num_samples += 1
-    # accuracy = num_correct * 100 / num_samples
-    # print(num_samples)
-    # print(num_correct)
-    # print("Test Accuracy: {:.3f}%".format(accuracy))
-
-
-
-    # print('Test loss:', score[0])
-    # print('Test accuracy:', score[1])
-
-    # print("plotting")
-    # # Plot training & validation accuracy values
     # plt.plot(history.history['accuracy'])
     # plt.plot(history.history['val_accuracy'])
     # plt.title('Model accuracy')
     # plt.ylabel('Accuracy')
     # plt.xlabel('Epoch')
     # plt.legend(['Train', 'Test'], loc='upper left')
-    # plt.show()
+    # plt.savefig("cnn_accuracy.png")
 
-    # # Plot training & validation loss values
+    # Plot training & validation loss values
+    # plt.clf()
     # plt.plot(history.history['loss'])
     # plt.plot(history.history['val_loss'])
     # plt.title('Model loss')
     # plt.ylabel('Loss')
     # plt.xlabel('Epoch')
     # plt.legend(['Train', 'Test'], loc='upper left')
-    # plt.show()
-
-
-
-    
+    # plt.savefig("cnn_loss.png")
