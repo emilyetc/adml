@@ -8,6 +8,7 @@ import torch.optim as optim
 import matplotlib.pyplot as plt
 from sklearn.metrics import accuracy_score
 from itertools import chain
+from tqdm import tqdm
 
 class Network(nn.Module):
     def __init__(self):
@@ -50,23 +51,91 @@ class Network(nn.Module):
 
         return x
 
+train_accu = []
+train_losses = []
+
+
+def train(epoch):
+    print('\nEpoch : %d'%epoch)
+
+    model.train()
+    running_loss = 0
+    correct = 0
+    total = 0
+
+    for imgs, labels in tqdm(train_loader):
+        imgs, labels = torch.tensor(imgs), torch.tensor(labels)
+        imgs = imgs.permute(0, 3, 1, 2)
+        model.train()
+        imgs = imgs.float()
+        imgs = imgs.to(device)
+        labels = labels.to(device)
+
+        output = model(imgs)
+
+        loss = criterion(output, torch.max(labels, 1)[1])
+
+        l2_lambda = 0.1
+        l2_norm = sum(p.pow(2).sum() for p in model.parameters())
+        loss = loss + l2_lambda * l2_norm
+
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        running_loss += loss.item()
+        total += labels.size(0)
+        correct += torch.sum(torch.max(output, dim=1).indices == torch.max(labels, dim=1).indices)
+
+    train_loss = running_loss / len(train_loader)
+    accu = 100. * float(correct) / total
+    train_accu.append(accu)
+    train_losses.append(train_loss)
+
+    print('Train Loss: %.3f | Accuracy: %.3f'%(train_loss,accu))
+
+eval_losses=[]
+eval_accu=[]
+
+def test(epoch):
+    model.eval()
+
+    running_loss=0
+    correct=0
+    total=0
+    
+    with torch.no_grad():
+        for imgs, labels in train_loader:
+            imgs, labels = torch.tensor(imgs), torch.tensor(labels)
+            imgs = imgs.permute(0, 3, 1, 2)
+            imgs = imgs.float()
+            imgs = imgs.to(device)
+            labels = labels.to(device)
+
+            output = model(imgs)
+
+            loss = criterion(output, torch.max(labels, 1)[1])
+
+    
+            running_loss+=loss.item()
+
+            total += labels.size(0)
+            correct += torch.sum(torch.max(output, dim=1).indices == torch.max(labels, dim=1).indices)
+    
+    test_loss=running_loss/len(test_loader)
+    accu=100.*float(correct)/total
+ 
+    eval_losses.append(test_loss)
+    eval_accu.append(accu)
+    
+    print('Test Loss: %.3f | Accuracy: %.3f'%(test_loss,accu)) 
+
+
+
+
+
 if __name__ == '__main__':
 
-    # print("loading data...")
-    # statarr_res = np.load(r'data/statarr_res.npy')
-    # imgarr_res = np.load(r'data/imgarr_res.npy')
-    # numarr_res = np.load(r'data/numarr_res.npy')
-    # print("data loaded")
-
-    # print("splitting data...")
-    # img_train, img_test = data.random_split(imgarr_res, [2350, 587], generator = torch.Generator().manual_seed(42))
-    # stat_train, stat_test = data.random_split(statarr_res, [2350, 587], generator = torch.Generator().manual_seed(42))
-    # num_train, num_test = data.random_split(numarr_res, [2350, 587], generator = torch.Generator().manual_seed(42))
-    # print("data split")
-    
-
-    # train_loader = data.DataLoader(ConcatDataset([num_train, img_train], stat_train), batch_size = 40)
-    # test_loader = data.DataLoader(ConcatDataset([num_test, img_test], stat_test), batch_size = 40)
     print('Loading Data...')
 
     imgs = np.load('data/imgarr_res.npy')
@@ -91,106 +160,31 @@ if __name__ == '__main__':
     optimizer = optim.Adam(model.parameters(), lr = 0.0001, eps = 0.05)
     criterion = nn.CrossEntropyLoss()
 
-    print('Training... ')
-
-    for epoch in range(epochs):
-        print(f'Epoch {epoch}')
-        loss_train = []
-        num_items = 0
-        min_loss = 100
 
 
-        for imgs, labels in train_loader:
-            imgs, labels = torch.tensor(imgs), torch.tensor(labels)
-            imgs = imgs.permute(0, 3, 1, 2)
-            model.train()
-            imgs = imgs.float()
-            imgs = imgs.to(device)
-            labels = labels.to(device)
+    for epoch in range(1, epochs+1):
+        train(epoch)
+        test(epoch)
 
-            output = model(imgs)
-
-            loss = criterion(output, torch.max(labels, 1)[1])
-
-            l2_lambda = 0.1
-            l2_norm = sum(p.pow(2).sum() for p in model.parameters())
-            loss = loss + l2_lambda * l2_norm
-
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-            loss_train += [loss.item()]
-            num_items += imgs.shape[0]
-            
-            if loss.item() < min_loss:
-                torch.save(model.state_dict(), 'cnn_model.pt')
-                min_loss = loss.item()
-
-        print('Train loss: {:.5f}'.format(np.mean(loss_train)))
-
+    print(train_accu)
+    print(train_losses)
     
-    accuracy = 0.0
-    num_items = 0
-
-    model.eval()
-    print(f"Testing...")
-    val_losses = []
-
-
-
-    loss = 0
-    correct = 0
-    with torch.no_grad():
-        for imgs, labels in train_loader:
-            imgs, labels = torch.tensor(imgs), torch.tensor(labels)
-            imgs = imgs.permute(0, 3, 1, 2)
-            imgs = imgs.float()
-            imgs = imgs.to(device)
-            labels = labels.to(device)
-
-            output = model(imgs)
-
-            loss = criterion(output, torch.max(labels, 1)[1])
-            val_losses += [loss]
-
-            pred = torch.max(output, 1)[1].data.squeeze()
-
-            correct += torch.sum(torch.max(output, dim=1).indices == torch.max(labels, dim=1).indices)
-
-        loss /= len(train_loader.dataset)
-
-        print('\nAverage loss: {:.4f}, Accuracy: {}/{} ({:.3f}%)\n'.format(loss, correct, len(train_loader.dataset), 100 * correct / len(train_loader.dataset)))
-
-            #accuracy += torch.sum(output == torch.max(labels, 1)[1]).item()
-            #num_items += data.shape[0]
-
-    #accuracy = accuracy * 100 / num_items
-    #print("Test Accuracy: {:.3f}%".format(accuracy))
-
-    plt.plot(loss_train)
+    plt.plot(train_accu)
+    plt.plot(eval_accu)
     plt.xlabel('Epoch')
     plt.ylabel('Accuracy')
-    plt.legend(['Training Loss'], loc = 'upper left')
-    plt.savefig("cnn_loss.png")
-    print("training loss ", min(loss_train))
+    plt.legend(['Train','Test'])
+    plt.title('Model accuracy')
+    
+    plt.savefig('cnn_acc.png')
 
-    # Plot training & validation accuracy values
+    plt.clf()
+    plt.plot(train_losses)
+    plt.plot(eval_losses)
+    plt.xlabel('Epoch')
+    plt.ylabel('Losses')
+    plt.legend(['Train','Test'])
+    plt.title('Model loss')
+    
+    plt.savefig('cnn_loss.png')
 
-    # plt.plot(history.history['accuracy'])
-    # plt.plot(history.history['val_accuracy'])
-    # plt.title('Model accuracy')
-    # plt.ylabel('Accuracy')
-    # plt.xlabel('Epoch')
-    # plt.legend(['Train', 'Test'], loc='upper left')
-    # plt.savefig("cnn_accuracy.png")
-
-    # Plot training & validation loss values
-    # plt.clf()
-    # plt.plot(history.history['loss'])
-    # plt.plot(history.history['val_loss'])
-    # plt.title('Model loss')
-    # plt.ylabel('Loss')
-    # plt.xlabel('Epoch')
-    # plt.legend(['Train', 'Test'], loc='upper left')
-    # plt.savefig("cnn_loss.png")
