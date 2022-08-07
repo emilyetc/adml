@@ -14,6 +14,7 @@ from torch import Tensor
 from torch import nn
 from torch.nn  import functional as F 
 from torch.autograd import Variable
+import torch.utils.data as data
 
 import scipy.io as sio
 from imblearn.over_sampling import SMOTE
@@ -21,9 +22,9 @@ from skimage import transform
 
 use_cuda = torch.cuda.is_available()
 train_losses = []
-test_losses = []
+valid_losses = []
 train_accuracy = []
-test_accuracy = []
+valid_accuracy = []
 
 def ode_solve(z0, t0, t1, f):
     """
@@ -502,7 +503,6 @@ imgarr_res = imgarr_res.reshape(-1, 1,128, 128)
 #splits 20% of data into test set, other 80% into training
 #x_train, x_test, y_train, y_test, vtrain, vtest = train_test_split(imgarr_res, statarr_res,numarr_res, test_size = 0.20)
 
-from scipy.sparse import data
 img_tensor = torch.from_numpy(imgarr_res)
 finished_data = ()
 
@@ -528,16 +528,27 @@ data1 = torchvision.datasets.MNIST("data/mnist", train=True, download=True,
 for i in data1:
   print(i)
 '''
-batch_size = 32
-train_loader = torch.utils.data.DataLoader(
-    finished_data,
-    batch_size=batch_size, shuffle=True
-)
+data_train, data_test = data.random_split(finished_data, [2350, 587], generator = torch.Generator().manual_seed(42))
+data_train, data_valid = data.random_split(data_train, [1880, 470], generator = torch.Generator().manual_seed(42))
 
-test_loader = torch.utils.data.DataLoader(
-    finished_data,
+data_train, data_test = data.random_split(finished_data, [2643, 293], generator = torch.Generator().manual_seed(42))
+data_train, data_valid = data.random_split(data_train, [2351, 293], generator = torch.Generator().manual_seed(42))
+
+train_loader = data.DataLoader(
+    data_train,
     batch_size=128, shuffle=True
 )
+
+test_loader = data.DataLoader(
+    data_test,
+    batch_size=32, shuffle=True
+)
+
+valid_loader = data.DataLoader(
+    data_valid,
+    batch_size=32, shuffle=True
+)
+
 
 optimizer = torch.optim.Adam(model.parameters())
 
@@ -550,7 +561,6 @@ def train(epoch):
     criterion = nn.CrossEntropyLoss()
     print(f"Training Epoch {epoch}...")
     for batch_idx, (data, target) in tqdm(enumerate(train_loader), total=len(train_loader)):
-
         data = data.float()
         if use_cuda:
             data = data.cuda()
@@ -568,15 +578,15 @@ def train(epoch):
     train_losses.append(np.mean(total_losses))
     train_accuracy.append(accuracy)
 
-def test():
+def valid():
     accuracy = 0.0
     num_items = 0
     total_losses = []
     model.eval()
     criterion = nn.CrossEntropyLoss()
-    print(f"Testing...")
+    print(f"Validating...")
     with torch.no_grad():
-        for batch_idx, (data, target) in tqdm(enumerate(test_loader),  total=len(test_loader)):
+        for batch_idx, (data, target) in tqdm(enumerate(valid_loader),  total=len(valid_loader)):
             data = data.float()
             if use_cuda:
                 data = data.cuda()
@@ -587,34 +597,63 @@ def test():
             loss = criterion(output, target) 
             total_losses += [loss.item()]
     accuracy = accuracy * 100 / num_items
+    print("Valid loss: {:.3f}".format(np.mean(total_losses)))
+    valid_losses.append(np.mean(total_losses))
+    valid_accuracy.append(accuracy)
+    return loss.item()
+
+def test():
+    accuracy = 0.0
+    num_items = 0
+    model.eval()
+    print(f"Testing...")
+    with torch.no_grad():
+        for batch_idx, (data, target) in tqdm(enumerate(test_loader),  total=len(test_loader)):
+            data = data.float()
+            if use_cuda:
+                data = data.cuda()
+                target = target.cuda()
+            output = model(data)
+            accuracy += torch.sum(torch.argmax(output, dim=1) == target).item()
+            num_items += data.shape[0]
+    accuracy = accuracy * 100 / num_items
     print("Test Accuracy: {:.3f}%".format(accuracy))
-    test_losses.append(np.mean(total_losses))
-    test_accuracy.append(accuracy)
 
 n_epochs = 250
 #test()
+loss = 100
+temp = 0
 
 for epoch in range(1, n_epochs + 1):
     train(epoch)
-    test()
+    temp = valid()
+    if temp < loss:
+        torch.save(model, 'best-model.pt')
+        loss = temp
+
+model = torch.load('best-model.pt')
+test()
 
 plt.plot(train_accuracy)
-plt.plot(test_accuracy)
+plt.plot(valid_accuracy)
 plt.xlabel('Epoch')
 plt.ylabel('Accuracy')
-plt.legend(['Train','Test'])
+plt.legend(['Train','Valid'])
 plt.title('Model accuracy')
 
 plt.savefig('ode_acc.png')
 
 plt.clf()
 plt.plot(train_losses)
-plt.plot(test_losses)
+plt.plot(valid_losses)
 plt.xlabel('Epoch')
 plt.ylabel('Losses')
-plt.legend(['Train','Test'])
+plt.legend(['Train','Valid'])
 plt.title('Model loss')
+#plt.ylim(0, 1)
 
 plt.savefig('ode_loss.png')
+
+
 
 
